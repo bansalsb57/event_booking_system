@@ -1,0 +1,356 @@
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# ==============================================================
+# template-app/bx/bx_block_admin/app/admin/admin_users.rb
+module AdminUsers
+  extend TemplateLoadHelper
+end
+
+if AdminUsers.page_registered?("AdminUser") && AdminUsers.is_being_loaded_from_app?
+  AdminUsers.unload_activeadmin_resource("AdminUser")
+end
+
+unless AdminUsers.page_registered?("AdminUsers")
+  ActiveAdmin.register AdminUser do
+    permit_params :name, :email, :password, :password_confirmation, :user_type, :activated
+
+    index do
+      selectable_column
+      id_column
+      column :name
+      column :email
+      column :user_type
+      column "Activated", :activated do |admin_user|
+        admin_user.activated.to_s
+      end
+      column :current_sign_in_at
+      column :sign_in_count
+      column :created_at
+      actions
+    end
+
+    filter :name
+    filter :email
+    filter :user_type
+    filter :activated, as: :select, collection: [['True', true], ['False', false]]
+
+    form do |f|
+      f.inputs do
+        f.input :name
+        f.input :email
+        f.input :password
+        f.input :password_confirmation
+        f.input :user_type, as: :select, collection: ['admin'], include_blank: false
+        f.input :activated, as: :boolean, input_html: { checked: true }
+      end
+      f.actions
+    end
+
+    controller do
+      def create
+        account_info = params[:admin_user]
+
+        super do |success, failure|
+          if success && resource.valid?
+            publish_analytics_event('admin.account.created', account_info.except(:password, :password_confirmation))
+          else
+            handle_error_messages
+          end
+        end
+      end
+
+      def update
+        account_info = params[:admin_user].except(:password, :password_confirmation)
+
+        super do |success, failure|
+          if success && resource.valid?
+            publish_analytics_event('admin.account.updated', account_info)
+          else
+            handle_error_messages
+          end
+        end
+      end
+
+      def publish_analytics_event(event_name, properties)
+        properties = properties || {}
+      
+        analytics_data = {
+          identifier: current_admin_user&.id.to_s,
+          properties: properties.compact,
+          event_name: event_name
+        }
+      
+        analytics_data[:properties] = analytics_data[:properties].merge(
+          action_by: current_admin_user&.id.to_s,
+          account_id: resource&.id.to_s
+        ).compact
+
+        begin
+          BuilderBase::AnalyticsEvent.publish(analytics_data)
+        rescue URI::InvalidURIError => e
+          Rails.logger.error "Analytics URI Error: #{e.message}"
+        rescue StandardError => e
+          Rails.logger.error "Analytics Error: #{e.message}"
+        end
+      end
+
+      private
+
+      def handle_error_messages
+        flash.now[:alert] = resource.errors.full_messages.join(' & ')
+      end
+    end
+  end
+end
+
+# ===========================================================
+# /data/home/ubuntu/Desktop/bcastr-780637-ruby/template-app/bx/bx_block_admin/spec/admin/admin_users_spec.rb
+
+# frozen_string_literal: true
+# require_relative '../rails_helper'
+
+# include Warden::Test::Helpers
+
+# RSpec.describe Admin::AdminUsersController, type: :controller do
+#   render_views
+
+#   before(:each) do
+#     @admin  = FactoryBot.create(:admin_user, name: "admin")
+#     @admin2 = FactoryBot.create(:admin_user, name: "admin2", email: Faker::Internet.email)
+    
+#     sign_in @admin
+#   end
+
+#   before do    
+#     allow_any_instance_of(Admin::AdminUsersController).to receive(:publish_analytics_event).and_return(status: :ok)
+#   end
+
+#   describe 'GET #all_admin_users' do
+#     it 'returns a list of admin' do
+#       admin_user1 = create(:admin_user, name: 'admin_user1')
+#       admin_user2 = create(:admin_user, name: 'admin_user2')
+#       get :index
+#       expect(response).to have_http_status(:ok)
+#     end
+#   end
+
+#   describe 'GET #edit' do
+#     it 'renders the edit template' do
+#       get :edit, params: { id: @admin2.id }
+#       expect(response).to have_http_status(:ok)
+#     end
+#   end
+
+#   describe 'PUT #update' do
+#     it 'updates the account' do
+#       put :update, params: { id: @admin2.id, admin_user: {email: Faker::Internet.email} }
+#       expect(response).to have_http_status(302)
+#       expect(response).to redirect_to(admin_admin_user_path(@admin2))
+#     end
+#   end
+
+
+#   describe 'POST #create' do
+#     let(:params) do
+#       {
+#         admin_user: {
+#           name: "Test User",
+#           email: Faker::Internet.email,
+#           password: "Password1!!",
+#           password_confirmation: "Password1!!",
+#           user_type: "admin",
+#           activated: true
+#         }
+#       }
+#     end
+
+#     it 'creates a new interest' do
+#       expect {
+#         post :create, params: params
+#       }.to change(AdminUser, :count).by(1)
+#     end
+
+#     it 'redirects to the show page after successful creation' do
+#       post :create, params: params
+#       expect(response).to redirect_to( %r(/admin\/admin_users/\d+) )
+#     end
+#   end
+
+#   describe "GET show" do
+#     it "renders the show template" do
+#       get :show, params: { id: @admin2.id }
+#       expect(response).to have_http_status(:ok)
+#     end
+#   end
+
+#   describe 'DELETE #destroy' do
+#     it 'deletes the account' do
+#       expect {
+#         delete :destroy, params: { id: @admin2.id }
+#       }.to change(AdminUser, :count).by(-1)
+#     end
+#   end
+# end
+
+
+# RSpec.describe Admin::AdminUsersController, type: :controller do
+# spec/admin/admin_users_spec.rb
+# require_relative '../../app/admin/admin_users'
+
+# require_relative '../rails_helper'
+
+include Warden::Test::Helpers
+
+RSpec.describe Admin::AdminUsersController, type: :controller do
+  render_views
+
+  before(:each) do
+    @admin  = FactoryBot.create(:admin_user, name: "admin")
+    @admin2 = FactoryBot.create(:admin_user, name: "admin2", email: Faker::Internet.email)
+    
+    sign_in @admin
+  end
+
+  before(:each) do
+    allow(AdminUsers).to receive(:page_registered?).with("AdminUser").and_return(true)
+    allow(AdminUsers).to receive(:is_being_loaded_from_app?).and_return(true)
+  end
+
+  before do    
+    allow_any_instance_of(Admin::AdminUsersController).to receive(:publish_analytics_event).and_return(status: :ok)
+  end
+
+  describe 'GET #all_admin_users' do
+    it 'returns a list of admin' do
+      admin_user1 = create(:admin_user, name: 'admin_user1')
+      admin_user2 = create(:admin_user, name: 'admin_user2')
+      
+      get :index
+
+      expect(response).to have_http_status(:ok)
+      expect(assigns(:admin_users)).to include(@admin, @admin2, admin_user1, admin_user2)
+      expect(response.body).to include(@admin.email, @admin2.email, admin_user1.email, admin_user2.email)
+    end
+  end
+
+  describe 'GET #edit' do
+    it 'renders the edit template' do
+      get :edit, params: { id: @admin2.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Edit Admin User")
+      expect(assigns(:admin_user)).to eq(@admin2)
+    end
+  end
+
+  describe 'PUT #update' do
+    it 'updates the account' do
+      new_email = Faker::Internet.email
+
+      put :update, params: { id: @admin2.id, admin_user: { email: new_email } }
+
+      expect(response).to have_http_status(302)
+      expect(response).to redirect_to(admin_admin_user_path(@admin2))
+      
+      @admin2.reload
+      expect(@admin2.email).to eq(new_email)
+    end
+
+    it 'does not update with invalid data' do
+      put :update, params: { id: @admin2.id, admin_user: { email: "invalid" } }
+
+      expect(response).to have_http_status(200)
+      expect(response.body).to include("Email is invalid")
+    end
+  end
+
+  describe 'POST #create' do
+    let(:params) do
+      {
+        admin_user: {
+          name: "Test User",
+          email: Faker::Internet.email,
+          password: "Password1!!",
+          password_confirmation: "Password1!!",
+          user_type: "admin",
+          activated: true
+        }
+      }
+    end
+
+    it 'creates a new admin user' do
+      expect {
+        post :create, params: params
+      }.to change(AdminUser, :count).by(1)
+
+      expect(response).to redirect_to(%r(/admin/admin_users/\d+))
+
+      created_admin = AdminUser.last
+      expect(created_admin.name).to eq("Test User")
+      expect(created_admin.activated).to be_truthy
+    end
+
+    it 'does not create an admin user with invalid data' do
+      invalid_params = params.deep_merge(admin_user: { email: "invalid" })
+
+      expect {
+        post :create, params: invalid_params
+      }.not_to change(AdminUser, :count)
+
+      expect(response).to have_http_status(200)
+      expect(response.body).to include("Email is invalid")
+    end
+  end
+
+  describe "GET #show" do
+    it "renders the show template" do
+      get :show, params: { id: @admin2.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(assigns(:admin_user)).to eq(@admin2)
+      expect(response.body).to include(@admin2.email)
+    end
+
+    it "returns 404 for non-existent user" do
+      expect {
+        get :show, params: { id: 9999 }
+      }.to raise_error(ActiveRecord::RecordNotFound)
+    end
+  end
+
+  describe 'DELETE #destroy' do
+    context 'when multiple admin users exist' do
+      it 'deletes the account' do
+        expect {
+          delete :destroy, params: { id: @admin2.id }
+        }.to change(AdminUser, :count).by(-1)
+
+        expect(response).to redirect_to(admin_admin_users_path)
+        expect(flash[:notice]).to eq('Admin user was successfully destroyed.')
+      end
+    end
+  end
+end
+
+# =============================================================
